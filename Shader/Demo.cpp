@@ -1,5 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string>
+#include <vector>
 
 #include <gl\glew.h>
 #include <gl\freeglut.h>
@@ -12,21 +14,43 @@
 
 #include "Shader.h"
 #include "Program.h"
+#include "Camera.h"
 
 /* Constants */
-const char* vShaderFileName = "shaders\\cube.v.glsl";
-const char* fShaderFileName = "shaders\\cube.f.glsl";
+const char* cubeVShaderFileName = "shaders\\cube.v.glsl";
+const char* cubeFShaderFileName = "shaders\\cube.f.glsl";
+const char* skyboxVShaderFileName = "shaders\\skybox.v.glsl";
+const char* skyboxFShaderFileName = "shaders\\skybox.f.glsl";
 const char* textureFileName = "textures\\tex.png";
+const std::vector<char*> cubemapTextureFilenames = 
+{ 
+	"textures\\right.JPG",
+	"textures\\left.JPG",
+	"textures\\top.JPG",
+	"textures\\bottom.JPG",
+	"textures\\back.JPG",
+	"textures\\front.JPG" 
+};
 
 /* Globals */
 glm::vec2 SCREEN_SIZE(1280, 768);
 GLuint VBO_Cube;
 GLuint VBO_Cube_Texture;
+GLuint VBO_Skybox;
+GLuint VAO_Skybox;
 GLuint IBO_Cube;
-GLuint	textureHandle;
-Program* gProgram = NULL;
-GLuint attribute_vertCoord, attribute_vertTextCoord;
-GLuint uniform_mvp, uniform_texture;
+GLuint textureHandle;
+GLuint cubemapHandle;
+Program* cubeProgram = NULL;
+Program* skyboxProgram = NULL;
+GLuint attribute_vertCoord, attribute_vertTextCoord, attribute_skyboxVertCoord;
+GLuint uniform_mvp, uniform_texture, uniform_mvp_skybox, uniform_skybox;
+Camera* camera = NULL;
+GLfloat lastTime = 0.0;
+GLfloat currentTime = 0.0;
+GLfloat deltaTime = 0.0;
+GLint xCoord = SCREEN_SIZE.x / 2;
+GLint yCoord = SCREEN_SIZE.y / 2;
 
 void CreateVertexBuffer()
 {
@@ -161,11 +185,107 @@ void CreateIndexTextureBuffer()
 	glBufferData(GL_ARRAY_BUFFER, sizeof(texcoord), texcoord, GL_STATIC_DRAW);
 }
 
+void CreateCubemapTextureBuffer()
+{
+	glGenTextures(1, &cubemapHandle);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapHandle);
+
+	for (int i = 0; i < cubemapTextureFilenames.size(); i++)
+	{
+		/* Load texture image and check for any error */
+		SDL_Surface* texture = IMG_Load(cubemapTextureFilenames.at(i));
+		if (texture == NULL)
+		{
+			std::cout << "Error loading the texture " << cubemapTextureFilenames.at(i) << ": " << SDL_GetError() << "\n" << std::endl;
+			exit(-1);
+		}
+
+		glTexImage2D
+		(
+			GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, // They are all consecutive
+			0,
+			GL_RGB,
+			texture->w,
+			texture->h,
+			0,
+			GL_RGB,
+			GL_UNSIGNED_BYTE,
+			texture->pixels
+		);
+
+		// Free memory
+		SDL_FreeSurface(texture);
+	}
+
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+}
+
+void CreateIndexCubemapTextureBuffer()
+{
+	GLfloat skyboxVertices[] = {
+		       
+		-1.0f,  1.0f, -1.0f,
+		-1.0f, -1.0f, -1.0f,
+		1.0f, -1.0f, -1.0f,
+		1.0f, -1.0f, -1.0f,
+		1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+
+		-1.0f, -1.0f,  1.0f,
+		-1.0f, -1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f,  1.0f,
+		-1.0f, -1.0f,  1.0f,
+
+		1.0f, -1.0f, -1.0f,
+		1.0f, -1.0f,  1.0f,
+		1.0f,  1.0f,  1.0f,
+		1.0f,  1.0f,  1.0f,
+		1.0f,  1.0f, -1.0f,
+		1.0f, -1.0f, -1.0f,
+
+		-1.0f, -1.0f,  1.0f,
+		-1.0f,  1.0f,  1.0f,
+		1.0f,  1.0f,  1.0f,
+		1.0f,  1.0f,  1.0f,
+		1.0f, -1.0f,  1.0f,
+		-1.0f, -1.0f,  1.0f,
+
+		-1.0f,  1.0f, -1.0f,
+		1.0f,  1.0f, -1.0f,
+		1.0f,  1.0f,  1.0f,
+		1.0f,  1.0f,  1.0f,
+		-1.0f,  1.0f,  1.0f,
+		-1.0f,  1.0f, -1.0f,
+
+		-1.0f, -1.0f, -1.0f,
+		-1.0f, -1.0f,  1.0f,
+		1.0f, -1.0f, -1.0f,
+		1.0f, -1.0f, -1.0f,
+		-1.0f, -1.0f,  1.0f,
+		1.0f, -1.0f,  1.0f
+	};
+
+	glGenVertexArrays(1, &VAO_Skybox);
+	glGenBuffers(1, &VBO_Skybox);
+	glBindVertexArray(VAO_Skybox);
+	glBindBuffer(GL_ARRAY_BUFFER, VBO_Skybox);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices, GL_STATIC_DRAW);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(GLfloat), (GLvoid*)0);
+	glBindVertexArray(0);
+}
+
 void init()
 {
 	/* Define reset background color */
 	glClearColor(0.5, 0.5, 0.5, 0.0);
-	/* Cull triangles which normal is not towards the camera */
+	/* Cull triangles whose normal is not towards the camera */
 	glEnable(GL_CULL_FACE);
 	/* Enable other capabilities */
 	glEnable(GL_BLEND);
@@ -177,20 +297,32 @@ void init()
 	CreateIndexBuffer();
 	CreateTextureBuffer();
 	CreateIndexTextureBuffer();
+	CreateCubemapTextureBuffer();
+	CreateIndexCubemapTextureBuffer();
 
 	/* Load the vertex and fragment shaders, and link them together. */
-	gProgram = new Program({ Shader::shaderFromFile(vShaderFileName, GL_VERTEX_SHADER),
-		Shader::shaderFromFile(fShaderFileName, GL_FRAGMENT_SHADER) });
-	
+	cubeProgram = new Program({ Shader::shaderFromFile(cubeVShaderFileName, GL_VERTEX_SHADER),
+		Shader::shaderFromFile(cubeFShaderFileName, GL_FRAGMENT_SHADER) });
+	skyboxProgram = new Program({ Shader::shaderFromFile(skyboxVShaderFileName, GL_VERTEX_SHADER),
+		Shader::shaderFromFile(skyboxFShaderFileName, GL_FRAGMENT_SHADER) });
+
 	/* Retrieve the indexes associate with user-defined attribute variables
 	and uniform variables. */
-	attribute_vertCoord = gProgram->m_GetAttributeLocation("vertCoord");
-	attribute_vertTextCoord = gProgram->m_GetAttributeLocation("vertTextCoord");
-	uniform_mvp = gProgram->m_GetUniformLocation("mvp");
-	uniform_texture = gProgram->m_GetUniformLocation("texture");
+	attribute_vertCoord = cubeProgram->m_GetAttributeLocation("vertCoord");
+	attribute_vertTextCoord = cubeProgram->m_GetAttributeLocation("vertTextCoord");
+	uniform_mvp = cubeProgram->m_GetUniformLocation("mvp");
+	uniform_texture = cubeProgram->m_GetUniformLocation("texture");
+	attribute_skyboxVertCoord = skyboxProgram->m_GetAttributeLocation("vertCoord");
+	uniform_mvp_skybox = skyboxProgram->m_GetUniformLocation("matrix");
+	uniform_skybox = skyboxProgram->m_GetUniformLocation("skybox");
+
+	/* Create new camera object and setup it. */
+	camera = new Camera();
+	camera->m_setPosition(glm::vec3(0, 0, 0));
+	camera->m_setViewportAspectRatio(SCREEN_SIZE.x, SCREEN_SIZE.y);
 }
 
-void ComputeMPV(GLfloat t, GLfloat sign)
+void ComputeMVP(GLfloat t, GLfloat sign)
 {
 	float angle = SDL_GetTicks() / 1000.0 * glm::radians(sign*15.0);
 
@@ -199,7 +331,7 @@ void ComputeMPV(GLfloat t, GLfloat sign)
 		glm::rotate(glm::mat4(1.0f), angle*3.0f, glm::vec3(1, 0, 0)) *
 		glm::rotate(glm::mat4(1.0f), angle*2.0f, glm::vec3(0, 1, 0)) *
 		glm::rotate(glm::mat4(1.0f), angle*4.0f, glm::vec3(0, 0, 1));
-
+	
 	/* Scale the object. */
 	glm::mat4 scale = glm::scale(glm::mat4(1.0f), glm::vec3(0.75f));
 
@@ -207,40 +339,53 @@ void ComputeMPV(GLfloat t, GLfloat sign)
 	Push the cube a bit in the background. */
 	glm::mat4 model = glm::translate(glm::mat4(1.0), glm::vec3(t, 0.0, -4.0));
 
-	/* Define View Matrix
-	This is a re-implementation of glutLookAt(eye, center, up)
-	eye: position of the camera
-	center: where the camera is pointed to
-	up: top of the camera */
-	glm::mat4 view = glm::lookAt(glm::vec3(0.0, 2.0, 0.0), glm::vec3(0.0, 0.0, -4.0), glm::vec3(0.0, 1.0, 0.0));
-
-	/* Define Projection Matrix
-	This is a re-implementation of gluPerspective(fovy, aspect, zNear, zFar)
-	fovy: vertical field of view (45° for a common 60° horizontal FOV in 4:3 resolution)
-	aspect: screen aspect ratio (width/height)
-	zNear and zFar: clipping plane (min/max depth) */
-	glm::mat4 projection = glm::perspective(45.0, 1.0*SCREEN_SIZE.x / SCREEN_SIZE.y, 0.1, 10.0);
-
-	/* Compute a global transformation matrix to be applied on each vertex to get the final 
+	/* Compute a global transformation matrix to be applied on each vertex to get the final
 	2D point on the screen. */
-	glm::mat4 mvp = projection*view*model*scale*rotate;
-	
+	glm::mat4 mvp = camera->m_MVP(model * scale * rotate);
+
 	/* Send the matrix to the shader. */
-	gProgram->UseProgram();
+	cubeProgram->UseProgram();
 	glUniformMatrix4fv(uniform_mvp, 1, GL_FALSE, glm::value_ptr(mvp));
 }
 
 void Render()
 {
+	// Compute delta time
+	currentTime = SDL_GetTicks();
+	deltaTime = currentTime - lastTime;
+	lastTime = currentTime;
+
 	// Reset background color and depth buffer
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	gProgram->UseProgram();
+#pragma region Skybox
+
+	/* Skybox must be drawn at the background of all the other objects. */
+	glDisable(GL_DEPTH_TEST);
+	/* Activate program*/
+	skyboxProgram->UseProgram();
+	/* Compute view projection matrix and send it to the shader */
+	glm::mat4 mvp = camera->m_projection() * glm::mat4(glm::mat3(camera->m_view()));
+	glUniformMatrix4fv(uniform_mvp_skybox, 1, GL_FALSE, glm::value_ptr(mvp));
+	/* send cubemap to the shader */
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapHandle);
+	glUniform1i(uniform_skybox, 0);
+	/* Draw the skybox cube. */
+	glBindVertexArray(VAO_Skybox);
+	glDrawArrays(GL_TRIANGLES, 0, 36);
+	glBindVertexArray(0);
+	/* Re-enable depth testing.  */
+	glEnable(GL_DEPTH_TEST);
+
+#pragma endregion
+
+	cubeProgram->UseProgram();
 
 	/* Enable texture 0. */
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, textureHandle);
-	glUniform1i(uniform_texture, 0); 
+	glUniform1i(uniform_texture, 0);
 
 	glEnableVertexAttribArray(attribute_vertCoord);
 	// Describe the vertices array to OpenGL
@@ -265,8 +410,12 @@ void Render()
 		0
 	);
 
+	/* Compute offset orientation */
+	camera->m_offsetOrientation(SCREEN_SIZE.y / 2 - yCoord, SCREEN_SIZE.x / 2 - xCoord);
+	glutWarpPointer(SCREEN_SIZE.x / 2, SCREEN_SIZE.y / 2);
+
 	/* Draw first cube. */
-	ComputeMPV(1.5, 1.0);
+	ComputeMVP(1.5, 1.0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO_Cube);
 	GLint size;
 	glGetBufferParameteriv(GL_ELEMENT_ARRAY_BUFFER, GL_BUFFER_SIZE, &size);
@@ -274,20 +423,13 @@ void Render()
 	glutPostRedisplay();
 
 	/* Draw second cube. */
-	ComputeMPV(-1.5f, -1.6);
+	ComputeMVP(-1.5f, -1.6);
 	glDrawElements(GL_TRIANGLES, size / sizeof(GLubyte), GL_UNSIGNED_BYTE, 0);
 	glutPostRedisplay();
 
 	glDisableVertexAttribArray(attribute_vertCoord);
 
 	glutSwapBuffers();
-}
-
-void Reshape(int width, int height)
-{
-	SCREEN_SIZE.x = width;
-	SCREEN_SIZE.y = height;
-	glViewport(0, 0, SCREEN_SIZE.x, SCREEN_SIZE.y);
 }
 
 void Finalize()
@@ -306,9 +448,54 @@ int main(int argc, char** argv)
 	glutInitWindowPosition(100, 100);
 	glutCreateWindow("Demo");
 
+	/* Print instructions */
+	std::cout << "Instructions:" << std::endl;
+	std::cout << "- Use WASD to move around the scene, and the mouse to change orientation." << std::endl;
+	std::cout << "- Press Q to exit the application." << std::endl;
+
+	/* Place cursor in the middle of the screen, and hide it. */
+	glutWarpPointer(SCREEN_SIZE.x / 2, SCREEN_SIZE.y / 2);
+	glutSetCursor(GLUT_CURSOR_NONE);
+
 	/* Inizialize callbacks */
 	glutDisplayFunc(Render);
-	glutReshapeFunc(Reshape);
+	glutReshapeFunc([](int width, int height)
+	{
+		SCREEN_SIZE.x = width;
+		SCREEN_SIZE.y = height;
+		glViewport(0, 0, SCREEN_SIZE.x, SCREEN_SIZE.y);
+	});
+	glutKeyboardFunc([](unsigned char key, int x, int y)
+	{
+		switch (key)
+		{
+		case 'w':
+			camera->m_offsetPosition(FORWARD, deltaTime);
+			break;
+		case 'd':
+			camera->m_offsetPosition(RIGHT, deltaTime);
+			break;
+		case 's':
+			camera->m_offsetPosition(BACKWARD, deltaTime);
+			break;
+		case 'a':
+			camera->m_offsetPosition(LEFT, deltaTime);
+			break;
+		case 'q':
+			exit(0);
+			break;
+		}
+	});
+	glutMotionFunc([](int x, int y)
+	{
+		xCoord = x;
+		yCoord = y;
+	});
+	glutPassiveMotionFunc([](int x, int y)
+	{
+		xCoord = x;
+		yCoord = y;
+	});
 
 	/* Inizialize Glew. */
 	GLenum res = glewInit();
@@ -319,6 +506,9 @@ int main(int argc, char** argv)
 	}
 
 	init();
+
+	// Save current time before entering the game loop
+	lastTime = SDL_GetTicks();
 
 	glutMainLoop();
 
