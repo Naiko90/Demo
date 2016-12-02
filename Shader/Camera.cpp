@@ -27,19 +27,28 @@ void Camera::m_setPosition(const glm::vec3 & position)
 
 void Camera::m_offsetPosition(Camera_Movement movement, GLfloat deltaTime)
 {
+	/* This method is used to compute the displacement of the camera's position.
+	displacement = moveSpeed * secondElapsed * moveDirection.
+	*/
 	switch (movement)
 	{
 	case FORWARD:
-		_position += deltaTime * cameraSpeed * m_forward();
+		_position += cameraSpeed * deltaTime * m_forward();
 		break;
 	case RIGHT:
-		_position += deltaTime * cameraSpeed * m_right();
+		_position += cameraSpeed * deltaTime * m_right();
 		break;
 	case BACKWARD:
-		_position += deltaTime * cameraSpeed * -m_forward();
+		_position += cameraSpeed * deltaTime * -m_forward();
 		break;
 	case LEFT:
-		_position += deltaTime * cameraSpeed * -m_right();
+		_position += cameraSpeed * deltaTime * -m_right();
+		break;
+	case UP:
+		_position += cameraSpeed * deltaTime * glm::vec3(0, 1, 0);
+		break;
+	case DOWN:
+		_position += cameraSpeed * deltaTime * glm::vec3(0, -1, 0);
 		break;
 	}
 }
@@ -112,24 +121,36 @@ glm::vec3 Camera::m_right() const
 
 glm::vec3 Camera::m_up() const
 {
+	/* Knowing that the up direction is always (0,1,0) after the camera rotation
+	(i.e., the camera direction) has been applied, we can multiply this 
+	vector by the inverse rotation giving us the up direction before the camera 
+	rotation was applied. 
+	Since (0,1,0) is a unit vector, it is not necessary to normalize the result. */
 	glm::vec3 up = glm::inverse(m_getOrientation()) * glm::vec4(0, 1, 0, 1);
 	return up;
 }
 
 glm::mat4 Camera::m_projection() const
 {
-	glm::mat4 projection = glm::perspective(_fieldOfView, _viewportAspectRatio, _nearPlane, _farPlane);
+	glm::mat4 projection = glm::perspective(glm::radians(_fieldOfView), _viewportAspectRatio, _nearPlane, _farPlane);
 	return projection;
 }
 
 glm::mat4 Camera::m_view() const
 {
+	/* We are using '-_position' because instead of moving the camera 
+	forward we are pulling the whole 3D scene backward. */
 	return m_getOrientation() * glm::translate(glm::mat4(), -_position);
 }
 
 glm::mat4 Camera::m_MVP(const glm::mat4& model) const
 {
 	return m_projection() * m_view() * model;
+}
+
+glm::mat4 Camera::m_matrix() const
+{
+	return m_projection() * m_view();
 }
 
 void Camera::m_normalizeAngles()

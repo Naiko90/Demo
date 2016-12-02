@@ -1,15 +1,18 @@
-#version 140
+#version 330
 
-uniform sampler2D texture;
+uniform sampler2D tex;
 
-in vec2 fragTextCoord;
+in vec2 fragTexCoord;
+
+/* in float r;
+in float g;
+in float b;
+in float a; */
 
 void main(void) 
 {
-	/* The OpenGL convention (origin at the bottom-left corner) is different than in 
-	2D applications (origin at the top-left corner). It is necessary to swap the 
-	texture Y coordinates */
-	vec2 flipped_texcoord = vec2(fragTextCoord.x, 1.0 - fragTextCoord.y);
+	vec2 flipped_texcoord = vec2(fragTexCoord.x, 1.0 - fragTexCoord.y);
+	gl_FragColor = texture2D(tex, flipped_texcoord);
 
-	gl_FragColor = texture2D(texture, flipped_texcoord);
+	// gl_FragColor = vec4(r, g, b, a);
 }

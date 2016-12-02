@@ -167,8 +167,12 @@
   <ItemGroup>
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="Demo.cpp" />
+    <ClCompile Include="Cube.cpp" />
+    <ClCompile Include="ModelAsset.cpp" />
     <ClCompile Include="Program.cpp" />
     <ClCompile Include="Shader.cpp" />
+    <ClCompile Include="Skybox.cpp" />
+    <ClCompile Include="Texture.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -180,8 +184,12 @@
   <ItemGroup>
     <ClInclude Include="Camera.h" />
     <ClInclude Include="Demo.h" />
+    <ClInclude Include="Cube.h" />
+    <ClInclude Include="ModelAsset.h" />
     <ClInclude Include="Program.h" />
     <ClInclude Include="Shader.h" />
+    <ClInclude Include="Skybox.h" />
+    <ClInclude Include="Texture.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

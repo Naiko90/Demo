@@ -1,6 +1,6 @@
 #include "Program.h"
 
-Program::Program(std::initializer_list<Shader> shaders):_object(0)
+Program::Program(std::initializer_list<Shader> shaders/*, std::initializer_list<std::pair<GLuint, std::string>> attributes*/):_object(0)
 {
 	if (shaders.size() == 0)
 	{
@@ -20,6 +20,12 @@ Program::Program(std::initializer_list<Shader> shaders):_object(0)
 	{
 		glAttachShader(_object, s.getID());
 	}
+
+	/*// Bind each attribute to a defined location (if any)
+	if (attributes.size() > 0)
+	{
+		m_assignAttributesLocation(attributes);
+	}*/
 
 	// Process all shader objects attached to program to generate a completed 
 	// shader program
@@ -45,30 +51,45 @@ Program::Program(std::initializer_list<Shader> shaders):_object(0)
 	}
 }
 
-GLuint Program::m_GetAttributeLocation(const GLchar * attrName) const
+int Program::m_GetAttributeLocation(const GLchar * attrName) const
 {
 	if (attrName == NULL)
 	{
 		throw std::runtime_error("attrName equal to NULL");
 	}
-
+	
 	GLuint attr = glGetAttribLocation(_object, attrName);
+
 	if (attr == -1)
 	{
 		std::runtime_error(std::string("Could not retrieve attribute: ") + attrName);
 	}
 
 	return attr;
+
+	/* for (auto& iter : _attributesLocation)
+	{
+		if (iter.second.compare(attrName) == 0)
+		{
+			return iter.first;
+		}
+	}
+
+	// If we arrive here it's because the attrName could not be found
+	std::runtime_error(std::string("Could not retrieve attribute: ") + attrName);
+
+	return -1;*/
 }
 
-GLuint Program::m_GetUniformLocation(const GLchar * uniformName) const
+int Program::m_GetUniformLocation(const GLchar * uniformName) const
 {
 	if (uniformName == NULL)
 	{
 		throw std::runtime_error("uniformName equal to NULL");
 	}
 
-	GLuint uniform = glGetUniformLocation(_object, uniformName);
+	int uniform = glGetUniformLocation(_object, uniformName);
+
 	if (uniform == -1)
 	{
 		std::runtime_error(std::string("Could not retrieve uniform: ") + uniformName);
@@ -82,10 +103,26 @@ GLuint Program::getID() const
 	return _object;
 }
 
-void Program::UseProgram()
+void Program::UseProgram(GLboolean status)
 {
-	glUseProgram(_object);
+	if (status == GL_TRUE)
+	{
+		glUseProgram(_object);
+	}
+	else
+	{
+		glUseProgram(0);
+	}
 }
+
+/* void Program::m_assignAttributesLocation(const std::initializer_list<std::pair<GLuint, std::string>>& attributes)
+{
+	for each (auto a in attributes)
+	{
+		_attributesLocation[a.first] = a.second;
+		glBindAttribLocation(_object, a.first, a.second.c_str());
+	}
+}*/
 
 Program::~Program()
 {

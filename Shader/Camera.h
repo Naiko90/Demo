@@ -17,7 +17,9 @@ enum Camera_Movement
 	FORWARD,
 	BACKWARD,
 	LEFT,
-	RIGHT
+	RIGHT,
+	UP,
+	DOWN
 };
 
 /**
@@ -127,10 +129,13 @@ public:
 
 	/**
 	Model View Projection matrix.
-
-	This is the matrix to be used in the vertex shader.
 	*/
 	glm::mat4 m_MVP(const glm::mat4& model) const;
+
+	/**
+	View Projection matrix.
+	*/
+	glm::mat4 m_matrix() const;
 
 private:
 
